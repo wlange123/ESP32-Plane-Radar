@@ -1,3 +1,4 @@
+
 # Plane Radar
 
 <img width="800" height="450" alt="plane-radar" src="https://github.com/user-attachments/assets/716d0992-dab8-47ba-8f1a-2aec7f607419" />
@@ -9,7 +10,7 @@ Firmware for an **ESP32-C3 Super Mini** and a **1.28″ round GC9A01** display (
 > **This fork adds support for the ESP32-2432S028 "Cheap Yellow Display" (CYD).** Original project by [MatixYo](https://github.com/MatixYo/ESP32-Plane-Radar) — all credit for the radar firmware goes there. See [CYD port](#cyd-port-esp32-2432s028) below.
 
 ## CYD port (ESP32-2432S028)
-
+<img width="1000" height="620" alt="ESP32 Radar" src="https://github.com/user-attachments/assets/63fd0cf4-fc3d-41de-9a86-fd1cd818a88e" />
 Runs on the 2.8″ **ESP32-2432S028** board (ESP32-WROOM, 320×240 SPI TFT, resistive touch) — no extra wiring needed.
 
 | Feature | Details |
