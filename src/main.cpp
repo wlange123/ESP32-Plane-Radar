@@ -42,9 +42,38 @@ void onRangeTap() {
   }
 }
 
+bool g_touch_down = false;
+bool g_touch_tap_pending = false;
+unsigned long g_last_touch_tap_ms = 0;
+
+void pollTouch() {
+  if (!config::kTouchEnabled) {
+    return;
+  }
+  lgfx::touch_point_t tp;
+  const bool down = tft.getTouch(&tp, 1) > 0;
+  if (down && !g_touch_down &&
+      millis() - g_last_touch_tap_ms >= config::kTouchTapGapMs) {
+    g_last_touch_tap_ms = millis();
+    g_touch_tap_pending = true;
+  }
+  g_touch_down = down;
+}
+
+void pollDuringFetch() {
+  wifiLoop();
+  pollTouch();
+}
+
 void handleBootButton() {
   bootButtonPollLongPress();
-  if (bootButtonConsumeTap()) {
+  pollTouch();
+  bool tap = bootButtonConsumeTap();
+  if (g_touch_tap_pending) {
+    g_touch_tap_pending = false;
+    tap = true;
+  }
+  if (tap) {
     onRangeTap();
   }
 }
@@ -70,12 +99,13 @@ void setup() {
 
   bootButtonInit();
   displayInit();
+  ui::radarDisplayPrealloc();
   if (wifiShowsSetupScreenOnBoot()) {
     statusScreenPortal();
   }
   services::location::init();
   ui::radar::rangeInit();
-  services::adsb::setPollFn(wifiLoop);
+  services::adsb::setPollFn(pollDuringFetch);
 
   if (wifiSetupConnect()) {
     showRadarIfConnected();

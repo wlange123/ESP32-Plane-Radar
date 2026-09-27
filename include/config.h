@@ -23,12 +23,55 @@ constexpr unsigned long kWifiDownGraceMs = 4000;
 /** Minimum interval between background reconnect tries. */
 constexpr unsigned long kWifiReconnectIntervalMs = 15000;
 
+#ifdef BOARD_CYD
+// --- BOOT button (ESP32-2432S028, GPIO 0, active LOW) ---
+constexpr gpio_num_t kBootPin = GPIO_NUM_0;
+#else
 // --- BOOT button (ESP32-C3 Super Mini, active LOW) ---
 constexpr gpio_num_t kBootPin = GPIO_NUM_9;
+#endif
 constexpr unsigned long kBootResetHoldMs = 3000UL;
 /** Ignore BOOT taps shorter than this (debounce). */
 constexpr unsigned long kBootTapMinMs = 40UL;
 
+#ifdef BOARD_CYD
+// --- Display: ESP32-2432S028 (CYD), 320×240 landscape (HSPI) ---
+// Controller variant: 1 = ILI9342 (native landscape), 0 = ILI9341
+#define CYD_PANEL_ILI9342 1
+constexpr bool kDisplayIli9342 = CYD_PANEL_ILI9342;
+constexpr gpio_num_t kDisplayPinRst = GPIO_NUM_NC;
+constexpr gpio_num_t kDisplayPinCs = GPIO_NUM_15;
+constexpr gpio_num_t kDisplayPinDc = GPIO_NUM_2;
+constexpr gpio_num_t kDisplayPinMosi = GPIO_NUM_13;
+constexpr gpio_num_t kDisplayPinMiso = GPIO_NUM_12;
+constexpr gpio_num_t kDisplayPinSclk = GPIO_NUM_14;
+constexpr gpio_num_t kDisplayPinBacklight = GPIO_NUM_21;
+
+constexpr int kDisplayWidth = 320;
+constexpr int kDisplayHeight = 240;
+// ILI9342: 2 = USB port on the right, 0 = USB port on the left
+constexpr int kDisplayRotation = 2;
+// --- Touch: XPT2046 resistive on VSPI; any tap cycles the range ---
+constexpr bool kTouchEnabled = true;
+constexpr int kTouchPinSclk = 25;
+constexpr int kTouchPinMosi = 32;
+constexpr int kTouchPinMiso = 39;
+constexpr int kTouchPinCs = 33;
+constexpr int kTouchPinIrq = 36;
+constexpr unsigned long kTouchTapGapMs = 350UL;
+
+/** Radar 240×240 on the left, info panel on the right. */
+constexpr int kRadarOffsetX = 0;
+constexpr int kInfoPanelWidth = kDisplayWidth - 240;
+/** Full-screen frame sprite; 8 bit keeps it small enough for the ESP32 heap. */
+constexpr uint8_t kFrameColorDepth = 8;
+
+constexpr uint32_t kDisplaySpiWriteHz = 40000000;
+// Wrong colors (inverted / red-blue swapped)? Toggle these two.
+constexpr bool kDisplayInvert = true;
+constexpr bool kDisplayRgbOrder = false;
+constexpr bool kAircraftSwapRB = false;
+#else
 // --- Display: GC9A01 1.28" round 240×240 (SPI) ---
 constexpr gpio_num_t kDisplayPinRst = GPIO_NUM_0;
 constexpr gpio_num_t kDisplayPinCs = GPIO_NUM_1;
@@ -43,6 +86,11 @@ constexpr uint32_t kDisplaySpiWriteHz = 40000000;
 // GC9A01 modules often need invert + BGR for correct black/green output
 constexpr bool kDisplayInvert = true;
 constexpr bool kDisplayRgbOrder = true;
+constexpr bool kAircraftSwapRB = true;
+constexpr int kDisplayRotation = 0;
+constexpr int kRadarOffsetX = 0;
+
+#endif
 
 // --- Radar center defaults (overridden via WiFi setup portal) ---
 constexpr double kDefaultRadarLat = 52.3676;

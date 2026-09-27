@@ -178,7 +178,7 @@ void initPalette() {
   radar::kColorLabel = tft.color565(255, 255, 255);
   radar::kColorCenter = tft.color565(255, 255, 255);
   // GC9A01 BGR panel: swap R/B in color565 so logical red renders red on screen.
-  if (config::kDisplayRgbOrder) {
+  if (config::kAircraftSwapRB) {
     radar::kColorAircraft =
         tft.color565(radar::kAircraftB, radar::kAircraftG, radar::kAircraftR);
   } else {
@@ -639,6 +639,115 @@ void drawScaleLabel(int cx, int cy, int outer_radius) {
                                scaleLabelAnchorX(cx, outer_radius), cy);
 }
 
+const char* compassPoint(float dx_km, float dy_km) {
+  static const char* const kPoints[] = {"N", "NO", "O", "SO", "S", "SW", "W", "NW"};
+  float deg = atan2f(dx_km, dy_km) / kDegToRad;
+  if (deg < 0.0f) {
+    deg += 360.0f;
+  }
+  const int idx = static_cast<int>(lroundf(deg / 45.0f)) % 8;
+  return kPoints[idx];
+}
+
+void drawPanelText(const char* text, int y, uint16_t color) {
+  s_draw->setTextColor(color, radar::kColorBackground);
+  s_draw->drawString(text, radar::kSize + config::kInfoPanelWidth / 2, y);
+}
+
+void drawInfoPanel() {
+  if (config::kInfoPanelWidth <= 0) {
+    return;
+  }
+  initTagLabelMetrics();
+
+  const int x0 = radar::kSize;
+  s_draw->fillRect(x0, 0, config::kInfoPanelWidth, radar::kSize,
+                   radar::kColorBackground);
+  s_draw->drawFastVLine(x0, 0, radar::kSize, radar::kColorGrid);
+
+  const size_t n = services::adsb::aircraftCount();
+  const services::adsb::Aircraft* planes = services::adsb::aircraftList();
+
+  size_t inside = 0;
+  int nearest = -1;
+  float nearest_km = 0.0f;
+  float nearest_dx = 0.0f;
+  float nearest_dy = 0.0f;
+  for (size_t i = 0; i < n; ++i) {
+    float dx_km = 0.0f;
+    float dy_km = 0.0f;
+    float dist_km = 0.0f;
+    offsetKmFromCenter(planes[i].lat, planes[i].lon, &dx_km, &dy_km, &dist_km);
+    if (isInsideOuterRingKm(dist_km)) {
+      ++inside;
+    }
+    if (nearest < 0 || dist_km < nearest_km) {
+      nearest = static_cast<int>(i);
+      nearest_km = dist_km;
+      nearest_dx = dx_km;
+      nearest_dy = dy_km;
+    }
+  }
+
+  const bool miles = radar::useMiles();
+  char buf[24];
+  s_draw->setTextDatum(textdatum_t::top_center);
+
+  applyScaleStyle();
+  const int small_h = s_draw->fontHeight();
+  int y = 6;
+  drawPanelText("Flugzeuge", y, radar::kColorGrid);
+  y += small_h + 2;
+
+  applyTagStyle();
+  const float tag_size = s_draw->getTextSizeX();
+  s_draw->setTextSize(tag_size * 2.0f);
+  snprintf(buf, sizeof(buf), "%u", static_cast<unsigned>(inside));
+  drawPanelText(buf, y, radar::kColorLabel);
+  y += s_draw->fontHeight() + 2;
+
+  applyScaleStyle();
+  snprintf(buf, sizeof(buf), "+%u Rand", static_cast<unsigned>(n - inside));
+  drawPanelText(buf, y, radar::kColorGrid);
+  y += small_h + 8;
+
+  s_draw->drawFastHLine(x0 + 8, y, config::kInfoPanelWidth - 16, radar::kColorGrid);
+  y += 8;
+
+  drawPanelText("Naechstes", y, radar::kColorGrid);
+  y += small_h + 4;
+
+  applyTagStyle();
+  const int line_h = s_draw->fontHeight() + 3;
+  if (nearest < 0) {
+    drawPanelText("--", y, radar::kColorLabel);
+    return;
+  }
+
+  const services::adsb::Aircraft& p = planes[nearest];
+  drawPanelText(p.callsign[0] != '\0' ? p.callsign : "?", y, radar::kColorLabel);
+  y += line_h;
+  if (p.type[0] != '\0') {
+    drawPanelText(p.type, y, radar::kColorTagType);
+    y += line_h;
+  }
+  const float dist = miles ? nearest_km * 0.621371f : nearest_km;
+  snprintf(buf, sizeof(buf), dist < 10.0f ? "%.1f%s" : "%.0f%s", dist,
+           miles ? "mi" : "km");
+  drawPanelText(buf, y, radar::kColorLabel);
+  y += line_h;
+  drawPanelText(compassPoint(nearest_dx, nearest_dy), y, radar::kColorLabel);
+  y += line_h;
+  if (p.alt[0] != '\0') {
+    drawPanelText(p.alt, y, radar::kColorTagAltitude);
+    y += line_h;
+  }
+  if (p.gs_knots > 0.0f) {
+    snprintf(buf, sizeof(buf), "%.0f kt", p.gs_knots);
+    drawPanelText(buf, y, radar::kColorTrackVector);
+  }
+}
+
 template <typename Gfx>
 void drawStaticGrid(Gfx& gfx) {
   initLabelMetrics();
@@ -663,10 +772,15 @@ bool ensureFrameSprite() {
   if (s_frame_ready) {
     return true;
   }
-  s_frame.setColorDepth(16);
-  if (!s_frame.createSprite(radar::kSize, radar::kSize)) {
-    Serial.println("radar: frame sprite alloc failed");
-    return false;
+  const int frame_w = radar::kSize + config::kInfoPanelWidth;
+  s_frame.setColorDepth(config::kFrameColorDepth);
+  if (!s_frame.createSprite(frame_w, radar::kSize)) {
+    s_frame.setColorDepth(8);
+    if (!s_frame.createSprite(frame_w, radar::kSize)) {
+      Serial.println("radar: frame sprite alloc failed");
+      return false;
+    }
+    Serial.println("radar: low heap, using 8-bit frame sprite");
   }
   s_frame_ready = true;
   return true;
@@ -680,8 +794,9 @@ void renderFrame() {
   {
     const DrawScope scope(s_frame);
     drawAircraft();
+    drawInfoPanel();
   }
-  s_frame.pushSprite(0, 0);
+  s_frame.pushSprite(config::kRadarOffsetX, 0);
   tft.setTextDatum(textdatum_t::top_left);
 }
 
@@ -700,6 +815,7 @@ void radarDisplayDraw() {
   const DrawScope scope(tft);
   drawStaticGrid(tft);
   drawAircraft();
+  drawInfoPanel();
   tft.setTextDatum(textdatum_t::top_left);
 }
 
@@ -713,5 +829,7 @@ void radarDisplayRefreshAircraft() {
 
   radarDisplayDraw();
 }
+
+void radarDisplayPrealloc() { ensureFrameSprite(); }
 
 }  // namespace ui

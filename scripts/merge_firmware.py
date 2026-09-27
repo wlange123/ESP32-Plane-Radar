@@ -44,7 +44,7 @@ def merge_firmware(source, target, env):
         "80m",
         "--flash_size",
         flash_size,
-        "0x0",
+        "0x1000" if mcu == "esp32" else "0x0",
         bootloader,
         "0x8000",
         partitions,

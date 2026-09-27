@@ -6,6 +6,54 @@
 
 Firmware for an **ESP32-C3 Super Mini** and a **1.28″ round GC9A01** display (240×240). Shows a circular **ADS-B radar** around your configured location, with **WiFiManager** for first-time setup.
 
+> **This fork adds support for the ESP32-2432S028 "Cheap Yellow Display" (CYD).** Original project by [MatixYo](https://github.com/MatixYo/ESP32-Plane-Radar) — all credit for the radar firmware goes there. See [CYD port](#cyd-port-esp32-2432s028) below.
+
+## CYD port (ESP32-2432S028)
+
+Runs on the 2.8″ **ESP32-2432S028** board (ESP32-WROOM, 320×240 SPI TFT, resistive touch) — no extra wiring needed.
+
+| Feature | Details |
+|--------|---------|
+| Layout | Landscape 320×240: 240×240 radar on the left, 80 px info panel on the right |
+| Info panel | Aircraft inside the radar ring, number of rim dots, nearest aircraft (callsign, type, distance, compass direction, altitude, ground speed) |
+| Touch | Tap anywhere on the screen to cycle the range (5 → 10 → 15 → 25 km) |
+| BOOT button | Same as original: short tap = next range, hold 3 s = reset Wi-Fi / location |
+| Frame buffer | One full-screen 8-bit sprite (flicker-free, fits the ESP32 heap next to Wi-Fi/TLS) |
+
+### Flashing (no toolchain needed)
+
+1. Download `PlaneRadar-CYD-merged.bin` from the [Releases](../../releases) of this fork
+2. Open [esptool-js](https://espressif.github.io/esptool-js/) in Chrome/Edge, baud rate 921600, **Connect**
+3. Flash address **0x0**, select the file, **Program**
+4. Join Wi-Fi `PlaneRadar-Setup`, open `http://192.168.4.1`, enter Wi-Fi, latitude and longitude
+
+For later updates flash only `PlaneRadar-CYD-app.bin` at **0x10000** — this keeps your saved Wi-Fi and location.
+
+### Building
+
+```
+pio run -e cyd            # default environment
+pio run -e cyd -t merge   # creates firmware-merged.bin for 0x0
+pio run -e supermini      # original round GC9A01 build
+```
+
+### Display variants
+
+CYD boards ship with different display controllers. All settings are in `include/config.h` (`#ifdef BOARD_CYD` block):
+
+| Symptom | Setting |
+|--------|---------|
+| Only 240 of 320 columns drawn, rest noise | Wrong controller: toggle `CYD_PANEL_ILI9342` (1 = ILI9342, 0 = ILI9341) |
+| Image mirrored / upside down | `kDisplayRotation` (ILI9342: 2 = USB right, 0 = USB left; mirrored variants 4–7) |
+| Colors inverted (yellow shows as blue/red) | `kDisplayInvert` |
+| Red and blue swapped | `kDisplayRgbOrder` |
+
+Tested on a board with ILI9342 controller (display module marked `TPM408-2.8`, USB-C): `CYD_PANEL_ILI9342 1`, rotation 2, invert `true`, RGB order `false`.
+
+Touch uses the usual CYD XPT2046 wiring (CLK 25, MOSI 32, MISO 39, CS 33, IRQ 36).
+
+---
+
 ## What it does
 
 1. **Wi‑Fi setup** (if needed) — captive portal on AP **`PlaneRadar-Setup`**
